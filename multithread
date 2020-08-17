@@ -1,0 +1,119 @@
+	#include <iostream>
+	#include <thread>
+	#include <chrono>
+	#include <future>
+	#include <cmath> 
+	#include <vector>
+	#include <cstdlib>
+	using namespace std;
+
+	double caculate(int v)
+	{
+		if (v <= 0) {
+			return v;
+		}
+		//假设这个计算很慢 
+		this_thread::sleep_for(chrono::milliseconds(10));
+		return sqrt((v * v + sqrt((v - 5) * (v + 2.5)) / 2.0) / v);
+	}
+
+	template<typename Iter, typename Fun>
+	double visitRange(thread::id id, Iter iterBegin, Iter iterEnd, Fun func)
+	{
+		auto curId = this_thread::get_id();
+		if (id == this_thread::get_id()) {
+			cout << curId << " hello main thread\n";
+		}
+		else {
+			cout << curId << " hello work thread\n";
+		}
+		double v = 0;
+		for (auto iter = iterBegin; iter != iterEnd; ++iter) {
+			v += func(*iter);
+		}
+		return v;
+	}
+
+	int main()
+	{
+		auto mainThreadId = std::this_thread::get_id();
+		//开启一个线程 
+		std::vector<double> v;
+		for (int i = 0; i < 1000; i++)
+		{
+			v.push_back(rand());
+		}
+		cout << v.size() << endl;
+		double value = 0.0;
+		auto st = clock();
+		for (auto & info : v)
+		{
+			value += caculate(info);
+		}
+		auto ed = clock();
+		cout << "single thread: " << value << " " << ed - st << "time" << endl;
+
+
+		//下面用多线程来进行 
+
+		auto iterMid = v.begin() + (v.size() / 2);     // 指向整个vector一半部分
+		//计算后半部分
+		double anotherv = 0.0;
+		auto iterEnd = v.end();
+		st = clock();
+
+		std::thread s([&anotherv, mainThreadId, iterMid, iterEnd]() {           // lambda 
+			anotherv = visitRange(mainThreadId, iterMid, iterEnd, caculate);
+
+		});
+		// 计算前半部分 
+		auto halfv1 = visitRange(mainThreadId, v.begin(), iterMid, caculate);
+
+		//关闭线程 
+		s.join();
+
+		ed = clock();
+		cout << "multi thread: " << (halfv1 + anotherv) << " " << ed - st << "time" << endl;
+
+		//下面用多线程来进行 
+
+		auto iterMid_one = v.begin() + (v.size() / 4);     // 指向整个vector一半部分
+		//计算1/4部分
+		double anotherv1 = 0.0;
+		double anotherv2 = 0.0;
+		double anotherv3 = 0.0;
+		auto iterEnd_one = v.begin()+ (v.size() / 2);
+		st = clock();
+     //计算1/4部分
+		std::thread s1([&anotherv1, mainThreadId, iterMid_one, iterEnd_one]() {           // lambda 
+			anotherv1 = visitRange(mainThreadId, iterMid_one, iterEnd_one, caculate);
+
+		});
+    //计算1/4部分
+		auto iterMid_two = v.begin();
+		auto iterEnd_two = v.begin() + (v.size() / 4);
+		std::thread s2([&anotherv2, mainThreadId, iterMid_two, iterEnd_two]() {           // lambda 
+			anotherv2 = visitRange(mainThreadId, iterMid_two, iterEnd_two, caculate);
+
+		});
+    //计算1/4部分
+		auto iterMid_three = v.begin()+ (3*v.size() / 4);
+		auto iterEnd_three = v.end();
+		std::thread s3([&anotherv3, mainThreadId, iterMid_three, iterEnd_three]() {           // lambda 
+			anotherv3 = visitRange(mainThreadId, iterMid_three, iterEnd_three, caculate);
+
+		});
+
+		//计算1/4部分
+		double halfv = visitRange(mainThreadId, iterEnd_one, iterMid_three, caculate);
+
+		//关闭线程 
+		s1.join();
+		s2.join();
+		s3.join();
+
+		ed = clock();
+		cout << "multi thread: " << (halfv + anotherv1+ anotherv2 + anotherv3) << " " << ed - st << "time" << endl;
+
+		return 0;
+	}
